@@ -1,0 +1,1 @@
+print('Score stocks here')
