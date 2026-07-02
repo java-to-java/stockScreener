@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nifty50 Earnings Tracker</title>
+<style>
+  :root {
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-blue:        #2a78d6;
+    --series-blue-track:  #cde2fb;
+    --status-good:     #0ca30c;
+    --status-critical: #d03b3b;
+    --status-neutral:  #898781;
+    --status-good-bg:     #e5f6e5;
+    --status-critical-bg: #fbe9e9;
+    --status-neutral-bg:  #eeeeec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-blue:        #3987e5;
+      --series-blue-track:  #184f95;
+      --status-good:     #0ca30c;
+      --status-critical: #e66767;
+      --status-neutral:  #898781;
+      --status-good-bg:     rgba(12,163,12,0.15);
+      --status-critical-bg: rgba(230,103,103,0.15);
+      --status-neutral-bg:  rgba(137,135,129,0.15);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-size: 15px;
+  }
+  .shell { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header.hero { margin-bottom: 20px; }
+  header.hero h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+  header.hero p { color: var(--text-secondary); font-size: 14px; margin: 0 0 10px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-muted); }
+  .meta-pill {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 99px; padding: 3px 10px;
+  }
+
+  .disclaimer {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-left: 3px solid var(--status-neutral);
+    border-radius: 8px; padding: 12px 14px; font-size: 13px;
+    color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5;
+  }
+  .disclaimer strong { color: var(--text-primary); }
+
+  .stat-tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px; margin-bottom: 20px;
+  }
+  .stat-tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .stat-tile .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 24px; font-weight: 600; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 14px;
+  }
+  .controls input[type=text] {
+    flex: 1; min-width: 160px; padding: 9px 12px; border: 1.5px solid var(--border);
+    border-radius: 8px; background: var(--surface-1); color: var(--text-primary);
+    font-size: 14px; outline: none;
+  }
+  .chip {
+    padding: 7px 13px; border-radius: 99px; border: 1.5px solid var(--border);
+    background: var(--surface-1); color: var(--text-secondary); font-size: 13px;
+    cursor: pointer; user-select: none; font-weight: 600;
+  }
+  .chip.active { border-color: var(--series-blue); color: var(--series-blue); background: var(--series-blue-track); }
+  .chip.active[data-dir="Bearish"] { border-color: var(--status-critical); color: var(--status-critical); background: var(--status-critical-bg); }
+  .chip.active[data-dir="Bullish"] { border-color: var(--status-good); color: var(--status-good); background: var(--status-good-bg); }
+  .spacer { flex: 1 1 auto; }
+  .view-toggle button {
+    padding: 7px 13px; border: 1.5px solid var(--border); background: var(--surface-1);
+    color: var(--text-secondary); font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .view-toggle button:first-child { border-radius: 8px 0 0 8px; }
+  .view-toggle button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+  .view-toggle button.active { background: var(--series-blue); border-color: var(--series-blue); color: #fff; }
+
+  .legend-key {
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    font-size: 12px; color: var(--text-muted); padding: 8px 2px 16px;
+  }
+  .legend-key .swatch { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-key .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .card-title .symbol { font-size: 16px; font-weight: 700; }
+  .card-title .name { font-size: 12px; color: var(--text-secondary); }
+  .card-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 99px; font-size: 12px; font-weight: 700;
+  }
+  .badge.dir-Bullish { background: var(--status-good-bg); color: var(--status-good); }
+  .badge.dir-Bearish { background: var(--status-critical-bg); color: var(--status-critical); }
+  .badge.dir-Neutral, .badge.dir-Unknown { background: var(--status-neutral-bg); color: var(--status-neutral); }
+  .badge.days { background: var(--series-blue-track); color: var(--series-blue); }
+  .badge.conf { background: var(--gridline); color: var(--text-secondary); font-weight: 600; }
+
+  .range-wrap { margin: 12px 0 10px; }
+  .range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .range-track {
+    position: relative; height: 12px; border-radius: 6px;
+    background: var(--gridline);
+  }
+  .range-fill {
+    position: absolute; top: 0; bottom: 0; border-radius: 6px;
+    background: var(--series-blue-track);
+  }
+  .range-marker {
+    position: absolute; top: -3px; width: 3px; height: 18px; border-radius: 2px;
+    background: var(--text-primary); transform: translateX(-50%);
+  }
+  .range-marker::after {
+    content: attr(data-label);
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--text-secondary); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-row { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-secondary); }
+  .stat-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .band-basis { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  thead th {
+    text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--gridline);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--gridline); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--page-plane); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+
+  footer { margin-top: 28px; font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  footer a { color: var(--series-blue); }
+
+  .hidden { display: none !important; }
+  @media (max-width: 520px) {
+    .stat-tiles { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="hero">
+    <h1>Nifty50 Earnings Tracker</h1>
+    <p>Expected 15-trading-day price range around upcoming results, derived from each stock's own historical pattern around past earnings dates.</p>
+    <div class="meta-row" id="metaRow"></div>
+  </header>
+
+  <div class="disclaimer">
+    <strong>Not investment advice.</strong> Direction and expected-range figures are a statistical summary of how each
+    stock has moved around its <em>own past</em> earnings dates (price action only - no analyst estimates, no news
+    sentiment). Small sample sizes are noted; past patterns are not a guarantee of future moves. Always verify the
+    result date independently before acting on it.
+  </div>
+
+  <div class="stat-tiles" id="statTiles"></div>
+
+  <div class="controls">
+    <input type="text" id="searchBox" placeholder="Search symbol or company…" />
+    <button class="chip active" data-dir="All">All</button>
+    <button class="chip" data-dir="Bullish">▲ Bullish</button>
+    <button class="chip" data-dir="Bearish">▼ Bearish</button>
+    <button class="chip" data-dir="Neutral">● Neutral</button>
+    <div class="spacer"></div>
+    <div class="view-toggle">
+      <button id="cardViewBtn" class="active">Cards</button><button id="tableViewBtn">Table</button>
+    </div>
+  </div>
+
+  <div class="legend-key">
+    <span class="swatch"><span class="dot" style="background:var(--series-blue-track);border:1px solid var(--series-blue)"></span> Expected 15-day range</span>
+    <span class="swatch"><span class="dot" style="background:var(--text-primary)"></span> Current price</span>
+    <span class="swatch"><span class="dot" style="background:var(--status-good)"></span> ▲ Bullish (historical win-rate ≥ 60%)</span>
+    <span class="swatch"><span class="dot" style="background:var(--status-critical)"></span> ▼ Bearish (≤ 40%)</span>
+  </div>
+
+  <div id="cardsView" class="cards"></div>
+  <div id="tableView" class="hidden">
+    <table id="predTable">
+      <thead>
+        <tr>
+          <th data-sort="symbol">Symbol</th>
+          <th data-sort="expected_result_date">Result date</th>
+          <th data-sort="days_to_result">Days</th>
+          <th data-sort="direction">Direction</th>
+          <th data-sort="confidence">Confidence</th>
+          <th data-sort="post_earnings_win_rate">Win rate</th>
+          <th data-sort="sample_size">Events</th>
+          <th data-sort="last_close">Last close</th>
+          <th data-sort="expected_low">Exp. low</th>
+          <th data-sort="expected_high">Exp. high</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="emptyState" class="empty-state hidden">No upcoming results match this filter.</div>
+
+  <footer>
+    <p>Generated by the Nifty50 earnings-pattern pipeline (price-action only; see the repo README for methodology
+    and limitations). "Expected range" basis: <b>earnings_history</b> = derived from this symbol's own past result-date
+    moves; <b>generic_volatility</b> = fallback used when fewer than the minimum historical events are available.</p>
+  </footer>
+</div>
+
+<script id="predictions-data" type="application/json">__PREDICTIONS_JSON__</script>
+<script>
+const payload = JSON.parse(document.getElementById('predictions-data').textContent);
+const predictions = payload.predictions || [];
+
+function fmtMoney(v) { return v == null ? '—' : '₹' + v.toLocaleString('en-IN', {maximumFractionDigits: 2}); }
+function fmtPct(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
+function dirIcon(d) { return d === 'Bullish' ? '▲' : d === 'Bearish' ? '▼' : '●'; }
+
+function renderMeta() {
+  const el = document.getElementById('metaRow');
+  const generated = payload.generated_at ? new Date(payload.generated_at).toLocaleString('en-IN') : 'unknown';
+  el.innerHTML = `
+    <span class="meta-pill">Generated ${generated}</span>
+    <span class="meta-pill">Lookahead: ${payload.lookahead_days ?? '?'} days</span>
+    <span class="meta-pill">${predictions.length} stocks tracked</span>
+  `;
+}
+
+function renderStatTiles() {
+  const counts = { Bullish: 0, Bearish: 0, Neutral: 0, Unknown: 0 };
+  let highConf = 0;
+  predictions.forEach(p => {
+    counts[p.direction] = (counts[p.direction] || 0) + 1;
+    if (p.confidence === 'High') highConf++;
+  });
+  const tiles = [
+    ['Upcoming results', predictions.length],
+    ['Bullish', counts.Bullish || 0],
+    ['Bearish', counts.Bearish || 0],
+    ['Neutral', (counts.Neutral || 0) + (counts.Unknown || 0)],
+    ['High confidence', highConf],
+  ];
+  document.getElementById('statTiles').innerHTML = tiles.map(([label, value]) =>
+    `<div class="stat-tile"><div class="label">${label}</div><div class="value">${value}</div></div>`
+  ).join('');
+}
+
+function rangeBarHTML(p) {
+  if (p.expected_low == null || p.expected_high == null) {
+    return '<div class="band-basis">No expected range available (insufficient price history).</div>';
+  }
+  const low = p.expected_low, high = p.expected_high, close = p.last_close;
+  const rangeMin = Math.min(low, close), rangeMax = Math.max(high, close);
+  const span = (rangeMax - rangeMin) || 1;
+  const pct = (v) => ((v - rangeMin) / span * 100).toFixed(2);
+  return `
+    <div class="range-wrap">
+      <div class="range-labels"><span>${fmtMoney(low)}</span><span>${fmtMoney(high)}</span></div>
+      <div class="range-track">
+        <div class="range-fill" style="left:${pct(low)}%;right:${100-pct(high)}%"></div>
+        <div class="range-marker" style="left:${pct(close)}%" data-label="${fmtMoney(close)}"></div>
+      </div>
+    </div>
+  `;
+}
+
+function cardHTML(p) {
+  return `
+    <div class="card" data-symbol="${p.symbol}" data-name="${(p.name||'').toLowerCase()}" data-dir="${p.direction}">
+      <div class="card-top">
+        <div class="card-title">
+          <div class="symbol">${p.symbol}</div>
+          <div class="name">${p.name || ''}</div>
+        </div>
+        <div class="card-badges">
+          <span class="badge days">in ${p.days_to_result}d · ${p.expected_result_date}</span>
+          <span class="badge dir-${p.direction}">${dirIcon(p.direction)} ${p.direction}</span>
+          <span class="badge conf">${p.confidence} confidence</span>
+        </div>
+      </div>
+      ${rangeBarHTML(p)}
+      <div class="stat-row">
+        <span>Post-earnings win-rate: <b>${p.post_earnings_win_rate != null ? (p.post_earnings_win_rate*100).toFixed(0)+'%' : '—'}</b></span>
+        <span>Historical events: <b>${p.sample_size}</b></span>
+        <span>Avg day-0 move: <b>${fmtPct(p.avg_day0_move_pct)}</b></span>
+        <span>Avg pre-earnings move: <b>${fmtPct(p.avg_pre_earnings_move_pct)}</b></span>
+      </div>
+      <div class="band-basis">Range basis: ${p.band_basis || '—'}${!p.reliable_history ? ' — fewer than the minimum historical events; treat with extra caution.' : ''}</div>
+    </div>
+  `;
+}
+
+function rowHTML(p) {
+  return `
+    <tr data-symbol="${p.symbol}" data-name="${(p.name||'').toLowerCase()}" data-dir="${p.direction}">
+      <td><b>${p.symbol}</b></td>
+      <td>${p.expected_result_date}</td>
+      <td>${p.days_to_result}</td>
+      <td>${dirIcon(p.direction)} ${p.direction}</td>
+      <td>${p.confidence}</td>
+      <td>${p.post_earnings_win_rate != null ? (p.post_earnings_win_rate*100).toFixed(0)+'%' : '—'}</td>
+      <td>${p.sample_size}</td>
+      <td>${fmtMoney(p.last_close)}</td>
+      <td>${fmtMoney(p.expected_low)}</td>
+      <td>${fmtMoney(p.expected_high)}</td>
+    </tr>
+  `;
+}
+
+let state = { dir: 'All', query: '', view: 'cards', sortKey: 'expected_result_date', sortDir: 1 };
+
+function applyFilters() {
+  const q = state.query.trim().toLowerCase();
+  return predictions.filter(p => {
+    if (state.dir !== 'All' && p.direction !== state.dir) return false;
+    if (q && !(p.symbol.toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a, b) => {
+    const av = a[state.sortKey], bv = b[state.sortKey];
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return av < bv ? -state.sortDir : av > bv ? state.sortDir : 0;
+  });
+}
+
+function render() {
+  const filtered = applyFilters();
+  document.getElementById('emptyState').classList.toggle('hidden', filtered.length > 0);
+  document.getElementById('cardsView').innerHTML = filtered.map(cardHTML).join('');
+  document.querySelector('#predTable tbody').innerHTML = filtered.map(rowHTML).join('');
+}
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    state.dir = chip.dataset.dir;
+    render();
+  });
+});
+document.getElementById('searchBox').addEventListener('input', (e) => { state.query = e.target.value; render(); });
+document.getElementById('cardViewBtn').addEventListener('click', () => {
+  state.view = 'cards';
+  document.getElementById('cardViewBtn').classList.add('active');
+  document.getElementById('tableViewBtn').classList.remove('active');
+  document.getElementById('cardsView').classList.remove('hidden');
+  document.getElementById('tableView').classList.add('hidden');
+});
+document.getElementById('tableViewBtn').addEventListener('click', () => {
+  state.view = 'table';
+  document.getElementById('tableViewBtn').classList.add('active');
+  document.getElementById('cardViewBtn').classList.remove('active');
+  document.getElementById('tableView').classList.remove('hidden');
+  document.getElementById('cardsView').classList.add('hidden');
+});
+document.querySelectorAll('#predTable thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    state.sortDir = (state.sortKey === key) ? -state.sortDir : 1;
+    state.sortKey = key;
+    render();
+  });
+});
+
+renderMeta();
+renderStatTiles();
+render();
+</script>
+</body>
+</html>
